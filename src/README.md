@@ -1,7 +1,11 @@
 compile: gcc -o test test.c
+
 run: ./test [host] [path]
+
 example: 
+
 ./test     students.iitk.ac.in     programmingclub/course/lectures/
+
 ./test     students.iitk.ac.in     programmingclub/course/programs/2_precedence.c
 
 TODO:
