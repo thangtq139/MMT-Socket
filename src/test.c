@@ -10,6 +10,7 @@
 #include <netdb.h>
 
 #define CMD_SIZE 1000
+#define HTML_FILENAME "respone.html"
 
 void grab_some_popcorn(int sockfd, char *host, char *path) {
 	char *cmd_fmt = "GET /%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n";
@@ -28,6 +29,8 @@ void grab_some_popcorn(int sockfd, char *host, char *path) {
 	} while (sent < cmd_len);
 
 	char *respone = malloc((CMD_SIZE + 1) * sizeof(char));
+	
+	FILE* fo = fopen(HTML_FILENAME, "w");
 	while (1) {
 		bytes = recv(sockfd, respone, CMD_SIZE, 0);
 		if (bytes < 0) {
@@ -37,8 +40,9 @@ void grab_some_popcorn(int sockfd, char *host, char *path) {
 		if (bytes == 0)
 			break;
 		respone[bytes] = '\0';
-		fprintf(stdout, "%s", respone);
+		fprintf(fo, "%s", respone);
 	}
+	fclose(fo);
 }
 
 int main(int argc, char *argv[])
