@@ -9,7 +9,7 @@ example:
 ./test     students.iitk.ac.in     programmingclub/course/programs/2_precedence.c
 
 TODO:
-*    create file (not write to stdout like this)
+*    create file (not write to stdout like this) [checked]
 *    control error
 *    parsing http link
 *    download whole folder
