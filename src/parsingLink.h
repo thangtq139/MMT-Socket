@@ -11,7 +11,7 @@ typedef struct Entry {
 	struct Entry* next_entry;
 } Entry;
 
-void newEntry(char* name, char* url, Entry* e);
+void newEntry(char* name, char* url, Entry** e);
 
 typedef struct {
 	Entry* head;
@@ -19,8 +19,8 @@ typedef struct {
 } EntryList;
 
 void newList(EntryList *L);
-void insertList(EntryList *L, Entry* e);
+void insertList(EntryList *L, char* name, char* url);
 
-EntryList parsingLink(char* fileName);
+EntryList parsingFile(char* fileName);
 
 #endif

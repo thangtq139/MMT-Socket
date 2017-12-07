@@ -1,10 +1,10 @@
 #include "parsingLink.h"
 
-void newEntry(char* name, char* url, Entry* e) {
-	e = (Entry*)calloc(1, sizeof(Entry));
-	e->name = name;
-	e->url = url;
-	e->next_entry = NULL;
+void newEntry(char* name, char* url, Entry** e) {
+	(*e) = (Entry*)calloc(1, sizeof(Entry));
+	(*e)->name = name;
+	(*e)->url = url;
+	(*e)->next_entry = NULL;
 }
 
 void newList(EntryList *L) {
@@ -12,7 +12,10 @@ void newList(EntryList *L) {
 	L->tail = NULL;
 }
 
-void insertList(EntryList *L, Entry* e) {
+void insertList(EntryList *L, char* name, char* url) {
+	Entry* e;
+	newEntry(name, url, &e);
+
 	if (L->tail) {	// list not empty
 		L->tail->next_entry = e;
 		L->tail = e;
@@ -25,5 +28,65 @@ void insertList(EntryList *L, Entry* e) {
 	}
 }
 
-EntryList parsingLink(char* fileName) {
+void clearList(EntryList* L) {
+	Entry* temp;
+	for (; L->head; ) {
+		temp = L->head;
+		L->head = L->head->next_entry;
+		free(temp);
+	}
+}
+
+int insertChar(char c, char* s, int len) {
+	if (len%1024 == 0) 
+		s = (char*)realloc(s, (len+1025)*sizeof(char));
+
+	s[len++] = c;
+	s[len] = '\0';
+	return len;
+}
+
+int readPrefix(FILE* f) {
+	char c;
+	if (fscanf(f, "%c", &c) == EOF) return 0;
+	if (c != '<') return 0;
+	if (fscanf(f, "%c", &c) == EOF) return 0;
+	if (c != 'a') return 0;
+	do {
+		if (fscanf(f, "%c", &c) == EOF) return 0;
+		if (c == '>') return 0;
+	} while (c != 'h');
+	if (fscanf(f, "%c", &c) == EOF) return 0;
+	if (c != 'r') return 0;
+	if (fscanf(f, "%c", &c) == EOF) return 0;
+	if (c != 'e') return 0;
+	if (fscanf(f, "%c", &c) == EOF) return 0;
+	if (c != 'f') return 0;
+	if (fscanf(f, "%c", &c) == EOF) return 0;
+	if (c != '=') return 0;
+	if (fscanf(f, "%c", &c) == EOF) return 0;
+	if (c != '\"') return 0;
+	return 1;
+}
+
+
+
+EntryList parsingFile(char* fileName) {
+	// hyperlink regex: <a href=".+">.+</a>
+	FILE* f = fopen(fileName, "r");
+	while (!feof(f)) {
+		if (readPrefix(f)) {
+			char* s;
+			char c;
+			int len;
+
+			len = 0;
+			while (fscanf(f, "%c", &c) != EOF) {
+				if (c == '\"') break;
+				
+				len = insertChar(c, s, len);
+			}
+		}
+	} 
+	fclose(f);
 }
