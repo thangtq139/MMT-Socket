@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include "parsingLink.h"
 
 #define CMD_SIZE 1000
 #define HTML_FILENAME "respone.html"
@@ -69,8 +70,15 @@ int main(int argc, char *argv[])
 		}
 		break;
 	}
-	if (sockfd != -1)
+	if (sockfd != -1) {
 		grab_some_popcorn(sockfd, argv[1], argv[2]);
+		EntryList L;
+		L = parsingFile(HTML_FILENAME);
+		
+		Entry* e;
+		for (e = L.head; e; e = e->next_entry)
+			printf("url=%s\nname=%s\n", e->url, e->name);
+	}
 	close(sockfd);
 	return 0;
 }

@@ -37,12 +37,12 @@ void clearList(EntryList* L) {
 	}
 }
 
-int insertChar(char c, char* s, int len) {
+int insertChar(char c, char** s, int len) {
 	if (len%256 == 0) 
-		s = (char*)realloc(s, (len+257)*sizeof(char));
+		*s = (char*)realloc(*s, (len+257)*sizeof(char));
 
-	s[len++] = c;
-	s[len] = '\0';
+	(*s)[len++] = c;
+	(*s)[len] = '\0';
 	return len;
 }
 
@@ -87,29 +87,29 @@ EntryList parsingFile(char* fileName) {
 			char *url, *name;
 			char c;
 			int len;
-
+			
+			url = NULL;
 			len = 0;
 			while (fscanf(f, "%c", &c) != EOF) {
 				if (c == '\"') break;
-				len = insertChar(c, url, len);
+				len = insertChar(c, &url, len);
 			}
-			
 			if (readInfix(f) == 0) {
 				free(url);
 				continue;
 			}
 			
+			name = NULL;
 			len = 0;
 			while (fscanf(f, "%c", &c) != EOF) {
-				len = insertChar(c, name, len);
+				len = insertChar(c, &name, len);
 				if (len > 4) {
-					if (name[len] == '>' && name[len-1] == 'a' && name[len-2] == '/' && name[len-3] == '<') {
-						name[len-3] = '\0';
+					if (name[len-1] == '>' && name[len-2] == 'a' && name[len-3] == '/' && name[len-4] == '<') {
+						name[len-4] = '\0';
 						break;
 					}
 				}
 			}
-
 			insertList(&L, name, url);
 		}
 	} 
