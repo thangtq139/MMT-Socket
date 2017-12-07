@@ -38,15 +38,15 @@ void clearList(EntryList* L) {
 }
 
 int insertChar(char c, char* s, int len) {
-	if (len%1024 == 0) 
-		s = (char*)realloc(s, (len+1025)*sizeof(char));
+	if (len%256 == 0) 
+		s = (char*)realloc(s, (len+257)*sizeof(char));
 
 	s[len++] = c;
 	s[len] = '\0';
 	return len;
 }
 
-int readPrefix(FILE* f) {
+int readPrefix(FILE* f) {	// Read <a.*href="
 	char c;
 	if (fscanf(f, "%c", &c) == EOF) return 0;
 	if (c != '<') return 0;
@@ -73,19 +73,22 @@ int readPrefix(FILE* f) {
 
 EntryList parsingFile(char* fileName) {
 	// hyperlink regex: <a href=".+">.+</a>
+	EntryList L;
 	FILE* f = fopen(fileName, "r");
 	while (!feof(f)) {
 		if (readPrefix(f)) {
-			char* s;
+			char *url, *name;
 			char c;
 			int len;
 
 			len = 0;
 			while (fscanf(f, "%c", &c) != EOF) {
 				if (c == '\"') break;
-				
-				len = insertChar(c, s, len);
+				len = insertChar(c, url, len);
 			}
+			
+			len = 0;
+			
 		}
 	} 
 	fclose(f);
