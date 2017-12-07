@@ -11,15 +11,15 @@ typedef struct Entry {
 	struct Entry* next_entry;
 } Entry;
 
-void newEntry(char* name, char* url, Entry** e);
+// void newEntry(char* name, char* url, Entry** e);
 
 typedef struct {
 	Entry* head;
 	Entry* tail;
 } EntryList;
 
-void newList(EntryList *L);
-void insertList(EntryList *L, char* name, char* url);
+// void newList(EntryList *L);
+// void insertList(EntryList *L, char* name, char* url);
 
 EntryList parsingFile(char* fileName);
 
