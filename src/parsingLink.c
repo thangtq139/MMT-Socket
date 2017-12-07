@@ -69,11 +69,18 @@ int readPrefix(FILE* f) {	// Read <a.*href="
 	return 1;
 }
 
-
+int readInfix(FILE* f) {	// Read .*>
+	char c;
+	do {
+		if (fscanf(f, "%c", &c) == EOF) return 0;
+	} while (c != '>');
+	return 1;
+}
 
 EntryList parsingFile(char* fileName) {
-	// hyperlink regex: <a href=".+">.+</a>
+	// hyperlink regex: <a.*href=".+".*>.+</a>
 	EntryList L;
+	newList(&L);
 	FILE* f = fopen(fileName, "r");
 	while (!feof(f)) {
 		if (readPrefix(f)) {
@@ -87,9 +94,25 @@ EntryList parsingFile(char* fileName) {
 				len = insertChar(c, url, len);
 			}
 			
-			len = 0;
+			if (readInfix(f) == 0) {
+				free(url);
+				continue;
+			}
 			
+			len = 0;
+			while (fscanf(f, "%c", &c) != EOF) {
+				len = insertChar(c, name, len);
+				if (len > 4) {
+					if (name[len] == '>' && name[len-1] == 'a' && name[len-2] == '/' && name[len-3] == '<') {
+						name[len-3] = '\0';
+						break;
+					}
+				}
+			}
+
+			insertList(&L, name, url);
 		}
 	} 
 	fclose(f);
+	return L;
 }
