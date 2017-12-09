@@ -1,4 +1,4 @@
-compile: gcc -o test test.c
+compile: gcc -o test test.c parsingLink.c
 
 run: ./test [host] [path]
 
