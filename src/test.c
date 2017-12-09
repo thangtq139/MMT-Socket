@@ -17,6 +17,7 @@
 #define MESSAGE_FILENAME "MESS"
 #define TEMP_FILENAME "TEMP"
 #define BUFF_FILENAME "BUFFER"
+#define FN_MAX 255
 
 char* FMT_CMD = "GET /%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n";
 int FMT_CMD_LEN = 45;
@@ -71,6 +72,7 @@ int splitMessageAndFile(char* fileName, char* fileResult) {
 			break;
 		}
 	}
+	
 	int lastpos;
 	lastpos = 0;
 
@@ -98,6 +100,9 @@ int splitMessageAndFile(char* fileName, char* fileResult) {
 	fwrite(content, sizeof(char), lenContent, fo);
 	fclose(fo);
 	return res;
+
+	free(header);
+	free(content);
 }
 
 void grab_some_popcorn(char *host, char *path) {
@@ -128,9 +133,11 @@ void grab_some_popcorn(char *host, char *path) {
 		break;
 	}
 
-
 	cmd = malloc((FMT_CMD_LEN + strlen(host) + strlen(path) + 1) * sizeof(char));	// plus 1 for '\0' character
-	cmd_len = sprintf(cmd, FMT_CMD, path, host);
+	if (path[0] == '/')
+		cmd_len = sprintf(cmd, FMT_CMD, path+1, host);
+	else
+		cmd_len = sprintf(cmd, FMT_CMD, path, host);
 	
 	sent = 0;
 	do {
@@ -146,7 +153,6 @@ void grab_some_popcorn(char *host, char *path) {
 	free(cmd);
 	
 	respone = malloc(BLOCK_SIZE * sizeof(char));
-
 	fmess = fopen(MESSAGE_FILENAME, "wb");
 	while (1) {
 		bytes = recv(sockfd, respone, BLOCK_SIZE, 0);
@@ -165,71 +171,101 @@ void grab_some_popcorn(char *host, char *path) {
 	close(sockfd);
 }
 
-void copyFile(char* sour, char* dest) {
-	FILE *fsour, *fdest;
-	char* buff;
-	int bytes;
 
-	fsour = fopen(sour, "rb");
-	fdest = fopen(dest, "wb");
-	buff = (char*)malloc(BLOCK_SIZE * sizeof(char));
-	
-	while ((bytes = fread(buff, sizeof(char), BLOCK_SIZE, fsour)) > 0) {
-		fwrite(buff, sizeof(char), bytes, fdest);
+void downloading(char* host, char* path, char* curpath, char* fname) {	// path is either file or folder
+	int res;
+	char *localpath, *subpath;
+	localpath = (char*)malloc((strlen(curpath)+1+strlen(fname)+1) * sizeof(char));
+	subpath = (char*)malloc((strlen(path)+1+FN_MAX+1) * sizeof(char));
+
+	if (stat(curpath, &st) == -1) {	// make new directory if not exists
+		mkdir(curpath, 0700);
 	}
 
-	fclose(fsour);
-	fclose(fdest);
-}
-
-void downloading(char* host, char* path, char* curpath) {	// path is either file or folder
-	int p, res, lenPath;
-	char* localpath;
-	localpath = (char*)malloc((strlen(host)+1+strlen(path)+1) * sizeof(char));
-
-	lenPath = strlen(path);
-	if (path[lenPath-1] == '/') {
-		res = 200;
+	if (path[strlen(path)-1] == '/') {
+		grab_some_popcorn(host, path);
+		res = splitMessageAndFile(MESSAGE_FILENAME, TEMP_FILENAME);
+		if (res != 200) {
+			free(localpath);
+			free(subpath);
+			return;
+		}
 	}
 	else {
-		sprintf(localpath, "%s/", path);	// '/' character is for directory
-		grab_some_popcorn(host, localpath);
+		sprintf(subpath, "%s/", path);	// '/' character is for directory
+		printf("Downloading %s\n", path);
+		grab_some_popcorn(host, subpath);
 		res = splitMessageAndFile(MESSAGE_FILENAME, TEMP_FILENAME);
 	}
 
 	if (res != 200) {	// not a directory
-		p = strlen(path);
-		while (p > 0 && path[p-1] != '/') {
-			--p;
-		}
+		sprintf(localpath, "%s/%s", curpath, fname);
 		
-		if (stat(curpath, &st) == -1) {	// make directory
-			mkdir(curpath, 0700);
-		}
-		
-		sprintf(localpath, "%s/%s", curpath, path+p);
-
 		grab_some_popcorn(host, path);
 		splitMessageAndFile(MESSAGE_FILENAME, localpath);
 	}
 	else {
-	
+		EntryList L;
+		L = parsingFile(TEMP_FILENAME);
+		
+		Entry* e;
+		for (e = L.head; e; e = e->next_entry) {
+			puts(e->url);
+			int flag;
+			int i, j;
+
+			
+			if (e->url[i] == '/') {
+				for (i = 0; path[i] && e->url[i]; ++i) 
+					if (path[i] != e->url[i]) 
+						break;
+
+				if (path[i] != '\0' || e->url[i] != '/') 
+					continue;
+				
+				++i;
+				if (e->url[i+1] == '\0')
+					continue;
+			}
+			else {
+				i = 0;
+			}
+
+			flag = 0;
+
+			j = strlen(e->url)-1;
+			if (e->url[j] == '/')
+				--j;
+
+			for ( ; j >= i; --j) {
+				if (e->url[j] == '\"' || e->url[j] == '*' || e->url[j] == '/' 
+					|| e->url[j] == ':' || e->url[j] == '<' || e->url[j] == '>'
+					|| e->url[j] == '?' || e->url[j] == '\\' || e->url[j] == '|'
+					|| e->url[j] == '-') {
+					flag = 1;
+					break;
+				}
+			}
+			if (flag != 0) continue;
+
+//			printf("%s\n%s\n", path, e->url);
+			
+			sprintf(localpath, "%s/%s", curpath, fname);
+			if (path[strlen(path)-1] != '/')
+				sprintf(subpath, "%s/%s", path, e->url+i);
+			else
+				sprintf(subpath, "%s%s", path, e->url+i);
+			downloading(host, subpath, localpath, e->name);
+		}
+		clearList(&L);
 	}
+	
+	free(localpath);
+	free(subpath);
 }
 
 
-int main(int argc, char *argv[])
-{
-	downloading(argv[1], argv[2], argv[1]);
-//		grab_some_popcorn(sockfd, argv[1], argv[2]);
-		
-/*	
-		EntryList L;
-		L = parsingFile(HTML_FILENAME);
-		
-		Entry* e;
-		for (e = L.head; e; e = e->next_entry)
-			printf("url=%s\nname=%s\n", e->url, e->name);
-*/
+int main(int argc, char *argv[]) {
+	downloading(argv[1], argv[2], argv[1], "");
 	return 0;
 }

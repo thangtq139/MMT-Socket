@@ -33,6 +33,8 @@ void clearList(EntryList* L) {
 	for (; L->head; ) {
 		temp = L->head;
 		L->head = L->head->next_entry;
+		free(temp->name);
+		free(temp->url);
 		free(temp);
 	}
 }
