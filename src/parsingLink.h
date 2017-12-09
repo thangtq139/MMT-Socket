@@ -21,6 +21,9 @@ typedef struct {
 // void newList(EntryList *L);
 // void insertList(EntryList *L, char* name, char* url);
 
+int insertChar(char c, char** s, int len);
+
+void clearList(EntryList* L);
 EntryList parsingFile(char* fileName);
 
 #endif
