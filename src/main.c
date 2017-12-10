@@ -26,95 +26,112 @@ struct stat st = {0};
 
 char respone[BLOCK_SIZE];
 
-int splitMessageAndFile(char* fileName, char* fileResult) {
-	FILE* fo = fopen(fileName, "rb");
-	char *header, *content;
-	int lenHeader, lenContent;
+int readSignal(FILE* fo, char** header, int* lenHeader) {
 	char c;
-	int whichHTTP;	// 0: 1.0  	or  1: 1.1
-	int chunked;	// 0: no	or 	1: yes
+	int res;
+	res = 0;
+	
+	while (fread(&c, sizeof(char), 1, fo) > 0) {
+		*lenHeader = insertChar(c, header, *lenHeader);
+		if (c >= '0' && c <= '9') {
+			res = (res*10)+(c-'0');
+		}
+		else if (strcmp((*header)+(*lenHeader)-2, "\r\n") == 0) {
+			break;
+		}
+	}
+	return res;
+}
+
+int readHeader(FILE* fo, int* chunked, int* whichHTTP) {
+	char* header;
+	int lenHeader;
+	char c;
 	int res;
 	
-	whichHTTP = -1;
-	chunked = 0;
+	*chunked = 0;
+	*whichHTTP = -1;	
 	res = 0;
 
-	// Read message
 	for (header = NULL, lenHeader = 0; fread(&c, sizeof(char), 1, fo) > 0; ) {
 		lenHeader = insertChar(c, &header, lenHeader);
-		if (whichHTTP == -1 && lenHeader >= 8 && strcmp(header+lenHeader-8, "HTTP/1.1") == 0) {
-			whichHTTP = 1;
-			
-			while (fread(&c, sizeof(char), 1, fo) > 0) {
-				lenHeader = insertChar(c, &header, lenHeader);
-				if (c >= '0' && c <= '9') {
-					res = (res*10)+(c-'0');
-				}
-				else if (strcmp(header+lenHeader-2, "\r\n") == 0) {
-					break;
-				}
-			}
+		if (*whichHTTP == -1 && lenHeader >= 8 && strcmp(header+lenHeader-8, "HTTP/1.1") == 0) {
+			*whichHTTP = 1;
+			res = readSignal(fo, &header, &lenHeader);
 		}
-		else if (whichHTTP == -1 && lenHeader >= 4 && strcmp(header+lenHeader-8, "HTTP/1.0") == 0) {
-			whichHTTP = 0;
-			
-			while (fread(&c, sizeof(char), 1, fo) > 0) {
-				lenHeader = insertChar(c, &header, lenHeader);
-				if (c >= '0' && c <= '9') {
-					res = (res*10)+(c-'0');
-				}
-				else if (strcmp(header+lenHeader-2, "\r\n") == 0) {
-					break;
-				}
-			}
+		else if (*whichHTTP == -1 && lenHeader >= 4 && strcmp(header+lenHeader-8, "HTTP/1.0") == 0) {
+			*whichHTTP = 0;
+			res = readSignal(fo, &header, &lenHeader);
 		}
-		else if (!chunked && lenHeader >= 26 && strcmp(header+lenHeader-26, "Transfer-Encoding: chunked") == 0) {
-			chunked = 1;
+		else if (!(*chunked) && lenHeader >= 26 && strcmp(header+lenHeader-26, "Transfer-Encoding: chunked") == 0) {
+			*chunked = 1;
 		}
 		else if (lenHeader >= 4 && strcmp(header+lenHeader-4, "\r\n\r\n") == 0) {
 			break;
 		}
 	}
-	
-	int lastpos;
-	lastpos = 0;
-
-	for (content = NULL, lenContent = 0; fread(&c, sizeof(char), 1, fo) > 0; ) {
-		lenContent = insertChar(c, &content, lenContent);
-		
-		if (chunked && lenContent >= 2 && strcmp(content+lenContent-2, "\r\n") == 0) {
-			if (lastpos == -1) {
-				lastpos = lenContent-2;
-			}
-			else {
-				lenContent = lastpos;
-				lastpos = -1;
-			}
-		}
-			
-	}
-	fclose(fo);
-
-	if (chunked && lastpos != -1) {
-		lenContent = lastpos;
-	}
-	
-	fo = fopen(fileResult, "wb");
-	fwrite(content, sizeof(char), lenContent, fo);
-	fclose(fo);
-	return res;
-
 	free(header);
+	return res;
+}
+
+int readContent(FILE* fo, FILE* fr, int chunked) {
+	char* content;
+	int lenContent;
+	char c;
+
+	if (!chunked) {
+		content = (char*)malloc(BLOCK_SIZE * sizeof(char));
+		while ((lenContent = fread(content, sizeof(char), BLOCK_SIZE, fo)) > 0) {
+			fwrite(content, sizeof(char), lenContent, fr);
+		}
+	}
+	else {
+		for (content = NULL, lenContent = 0; ; ) {
+			lenContent = 0;
+
+			int sz;
+			sz = 0;
+			while (fread(&c, sizeof(char), 1, fo) > 0) {
+				lenContent = insertChar(c, &content, lenContent);
+				if (lenContent >= 2 && strcmp(content+lenContent-2, "\r\n") == 0) {
+					lenContent -= 2;
+					break;
+				}
+			}
+			if (lenContent == 0)
+				break;
+
+			sz = strtol(content, NULL, 16);
+			
+			content = (char*)realloc(content, sz * sizeof(char));
+			sz = fread(content, sizeof(char), sz, fo);
+			fwrite(content, sizeof(char), sz, fr);
+			
+			fread(&c, sizeof(char), 1, fo);	// read '\r'
+			fread(&c, sizeof(char), 1, fo); // read '\n'
+		}
+	}
 	free(content);
 }
 
-void grab_some_popcorn(char *host, char *path) {
+int splitMessageAndFile(char* fileName, char* fileResult) {
+	FILE* fo = fopen(fileName, "rb");
+	FILE* fr = fopen(fileResult, "wb");
+
+	int whichHTTP;	// 0: 1.0  	or  1: 1.1
+	int chunked;	// 0: no	or 	1: yes
+	int res;
+	
+	res = readHeader(fo, &chunked, &whichHTTP);
+	readContent(fo, fr, chunked);
+	fclose(fo);
+	fclose(fr);
+	return res;
+}
+
+int newSocketAndConnect(char* host, char* path) {
 	struct addrinfo hints, *res, *p;
 	int status, sockfd;
-	FILE* fmess;
-	char *cmd;
-	int cmd_len;
-	int sent, bytes;
 
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = AF_UNSPEC;
@@ -122,7 +139,7 @@ void grab_some_popcorn(char *host, char *path) {
 
 	if ((status = getaddrinfo(host, "http", &hints, &res)) != 0) {
 		fprintf(stderr, "Cannot find address of %s\n", host);
-		return ;
+		return -1;
 	}
 	sockfd = -1;
 	for (p = res; p != NULL; p = p->ai_next) {
@@ -135,13 +152,12 @@ void grab_some_popcorn(char *host, char *path) {
 		}
 		break;
 	}
+	return sockfd;
+}
 
-	cmd = malloc((FMT_CMD_LEN + strlen(host) + strlen(path) + 1) * sizeof(char));	// plus 1 for '\0' character
-	if (path[0] == '/')
-		cmd_len = sprintf(cmd, FMT_CMD, path+1, host);
-	else
-		cmd_len = sprintf(cmd, FMT_CMD, path, host);
-	
+void sendMess(char* host, char* path, int sockfd, char* cmd, int cmd_len) {
+	int sent, bytes;
+
 	sent = 0;
 	do {
 		bytes = send(sockfd, cmd + sent, cmd_len - sent, 0);
@@ -153,9 +169,14 @@ void grab_some_popcorn(char *host, char *path) {
 			break;
 		sent += bytes;
 	} while (sent < cmd_len);
-	free(cmd);
-	
+
+}
+
+void receiveMess(char* host, char* path, int sockfd) {
+	int bytes;
+	FILE* fmess;
 	fmess = fopen(MESSAGE_FILENAME, "wb");
+
 	while (1) {
 		bytes = recv(sockfd, respone, BLOCK_SIZE, 0);
 		if (bytes < 0) {
@@ -167,8 +188,28 @@ void grab_some_popcorn(char *host, char *path) {
 		}
 		fwrite(respone, sizeof(char), bytes, fmess);
 	}
+
 	fclose(fmess);
 
+}
+
+void grab_some_popcorn(char *host, char *path) {
+	int sockfd;
+	FILE* fmess;
+	char *cmd;
+	int cmd_len;
+	
+	sockfd = newSocketAndConnect(host, path);
+
+	cmd = malloc((FMT_CMD_LEN + strlen(host) + strlen(path) + 1) * sizeof(char));	// plus 1 for '\0' character
+	if (path[0] == '/')
+		cmd_len = sprintf(cmd, FMT_CMD, path+1, host);
+	else
+		cmd_len = sprintf(cmd, FMT_CMD, path, host);
+	sendMess(host, path, sockfd, cmd, cmd_len);
+	free(cmd);
+	
+	receiveMess(host, path, sockfd);
 	close(sockfd);
 }
 
