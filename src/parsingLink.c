@@ -83,6 +83,7 @@ EntryList parsingFile(char* fileName) {
 	// hyperlink regex: <a.*href=".+".*>.+</a>
 	EntryList L;
 	newList(&L);
+
 	FILE* f = fopen(fileName, "r");
 	while (!feof(f)) {
 		if (readPrefix(f)) {
@@ -111,8 +112,22 @@ EntryList parsingFile(char* fileName) {
 						break;
 					}
 				}
+				if (c == '>') {
+					name[--len] = '\0';
+					while (len > 0 && name[len-1] != '<')
+						name[--len] = '\0';
+					if (len > 0)
+						name[--len] = '\0';
+				}
 			}
-			insertList(&L, name, url);
+			
+			if (len > 0) {
+				insertList(&L, name, url);
+			}
+			else {
+				free(name);
+				free(url);
+			}
 		}
 	} 
 	fclose(f);

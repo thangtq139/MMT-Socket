@@ -21,7 +21,10 @@
 
 char* FMT_CMD = "GET /%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n";
 int FMT_CMD_LEN = 45;
+
 struct stat st = {0};
+
+char respone[BLOCK_SIZE];
 
 int splitMessageAndFile(char* fileName, char* fileResult) {
 	FILE* fo = fopen(fileName, "rb");
@@ -109,7 +112,7 @@ void grab_some_popcorn(char *host, char *path) {
 	struct addrinfo hints, *res, *p;
 	int status, sockfd;
 	FILE* fmess;
-	char *cmd, *respone;
+	char *cmd;
 	int cmd_len;
 	int sent, bytes;
 
@@ -152,7 +155,6 @@ void grab_some_popcorn(char *host, char *path) {
 	} while (sent < cmd_len);
 	free(cmd);
 	
-	respone = malloc(BLOCK_SIZE * sizeof(char));
 	fmess = fopen(MESSAGE_FILENAME, "wb");
 	while (1) {
 		bytes = recv(sockfd, respone, BLOCK_SIZE, 0);
@@ -166,21 +168,28 @@ void grab_some_popcorn(char *host, char *path) {
 		fwrite(respone, sizeof(char), bytes, fmess);
 	}
 	fclose(fmess);
-	free(respone);
 
 	close(sockfd);
 }
 
-
 void downloading(char* host, char* path, char* curpath, char* fname) {	// path is either file or folder
-	int res;
+	int res, p;
 	char *localpath, *subpath;
-	localpath = (char*)malloc((strlen(curpath)+1+strlen(fname)+1) * sizeof(char));
+	localpath = (char*)malloc((strlen(curpath)+1+strlen(path)+FN_MAX+1) * sizeof(char));
 	subpath = (char*)malloc((strlen(path)+1+FN_MAX+1) * sizeof(char));
 
-	if (stat(curpath, &st) == -1) {	// make new directory if not exists
+	if (fname[0] != '\0' && stat(curpath, &st) == -1) {	// make new directory if not exists
 		mkdir(curpath, 0700);
 	}
+
+	if (fname[0] == '\0') {
+		p = strlen(path);
+		if (p > 0) {
+			if (path[p-1] == '/') --p;
+			while (p > 0 && path[p-1] != '/')
+				--p;
+		}
+	}	
 
 	if (path[strlen(path)-1] == '/') {
 		grab_some_popcorn(host, path);
@@ -193,24 +202,31 @@ void downloading(char* host, char* path, char* curpath, char* fname) {	// path i
 	}
 	else {
 		sprintf(subpath, "%s/", path);	// '/' character is for directory
-		printf("Downloading %s\n", path);
 		grab_some_popcorn(host, subpath);
 		res = splitMessageAndFile(MESSAGE_FILENAME, TEMP_FILENAME);
 	}
 
-	if (res != 200) {	// not a directory
-		sprintf(localpath, "%s/%s", curpath, fname);
-		
+	if (res != 200) {	// not a directory, i.e. a file
+		if (fname[0] == '\0') {	// Null string
+			sprintf(localpath, "%s%s", curpath, path+p);
+		}
+		else {
+			sprintf(localpath, "%s/%s", curpath, fname);
+		}
+		printf("Downloading %s\n", path);
 		grab_some_popcorn(host, path);
 		splitMessageAndFile(MESSAGE_FILENAME, localpath);
 	}
 	else {
+		if (fname[0] == '\0') {
+			sprintf(localpath, "%s%s", curpath, path+p);
+			mkdir(localpath, 0700);
+		}
 		EntryList L;
 		L = parsingFile(TEMP_FILENAME);
 		
 		Entry* e;
 		for (e = L.head; e; e = e->next_entry) {
-			puts(e->url);
 			int flag;
 			int i, j;
 
@@ -235,22 +251,27 @@ void downloading(char* host, char* path, char* curpath, char* fname) {	// path i
 
 			j = strlen(e->url)-1;
 			if (e->url[j] == '/')
-				--j;
+				e->url[j--] = '\0';
+			
+			if (((j >= 2 && e->url[j-2] == '/') || j == 1) && e->url[j] == '.' && e->url[j-1] == '.')
+				continue;
 
 			for ( ; j >= i; --j) {
 				if (e->url[j] == '\"' || e->url[j] == '*' || e->url[j] == '/' 
 					|| e->url[j] == ':' || e->url[j] == '<' || e->url[j] == '>'
-					|| e->url[j] == '?' || e->url[j] == '\\' || e->url[j] == '|'
-					|| e->url[j] == '-') {
+					|| e->url[j] == '?' || e->url[j] == '\\' || e->url[j] == '|') {
 					flag = 1;
 					break;
 				}
 			}
-			if (flag != 0) continue;
-
-//			printf("%s\n%s\n", path, e->url);
 			
-			sprintf(localpath, "%s/%s", curpath, fname);
+			if (flag != 0) continue;
+			
+			if (fname[0] == '\0')
+				sprintf(localpath, "%s%s", curpath, path+p);
+			else
+				sprintf(localpath, "%s/%s", curpath, fname);
+
 			if (path[strlen(path)-1] != '/')
 				sprintf(subpath, "%s/%s", path, e->url+i);
 			else
@@ -266,6 +287,6 @@ void downloading(char* host, char* path, char* curpath, char* fname) {	// path i
 
 
 int main(int argc, char *argv[]) {
-	downloading(argv[1], argv[2], argv[1], "");
+	downloading(argv[1], argv[2], "1512203_1512525_", "");
 	return 0;
 }
