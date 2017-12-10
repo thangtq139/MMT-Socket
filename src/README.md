@@ -4,9 +4,9 @@ run: ./1512203_1512525 [host] [path]
 
 example: 
 
-./1512203_1512525     students.iitk.ac.in     programmingclub/course/lectures/
+./1512203_1512525 http://students.iitk.ac.in/programmingclub/course/lectures/
 
-./1512203_1512525     students.iitk.ac.in     programmingclub/course/programs/2_precedence.c
+./1512203_1512525 http://students.iitk.ac.in/programmingclub/course/programs/2_precedence.c
 
 TODO:
 *    create file (not write to stdout like this) [checked]

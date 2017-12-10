@@ -328,6 +328,22 @@ void downloading(char* host, char* path, char* curpath, char* fname) {	// path i
 
 
 int main(int argc, char *argv[]) {
-	downloading(argv[1], argv[2], "1512203_1512525_", "");
+	int i, u, v, len;
+	for (i = 0, len = strlen(argv[1]), u = -1, v = len; i < len; ++i) {
+		if (argv[1][i] == '/' && argv[1][i+1] != '/') {
+			if (u == -1) {
+				u = i+1;
+			}
+			else if (u >= 0) {
+				v = i+1;
+				argv[1][i] = '\0';
+				break;
+			}
+		}
+	}
+	if (u == -1) 
+		return 0;
+	
+	downloading(argv[1]+u, argv[1]+v, "1512203_1512525_", "");
 	return 0;
 }
