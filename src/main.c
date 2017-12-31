@@ -19,12 +19,17 @@
 #define BUFF_FILENAME "BUFFER"
 #define FN_MAX 255
 
-char* FMT_CMD = "GET /%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n";
+char* FMT_CMD_1 = "GET /%s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n";
+char* FMT_CMD_0 = "GET /%s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n";
+
+char* FMT_CMD;
 int FMT_CMD_LEN = 45;
 
 struct stat st = {0};
 
 char respone[BLOCK_SIZE];
+
+int whichHTTPToUse = 0;
 
 int readSignal(FILE* fo, char** header, int* lenHeader) {
 	char c;
@@ -220,6 +225,7 @@ void downloading(char* host, char* path, char* curpath, char* fname) {	// path i
 	subpath = (char*)malloc((strlen(path)+1+FN_MAX+1) * sizeof(char));
 
 	if (fname[0] != '\0' && stat(curpath, &st) == -1) {	// make new directory if not exists
+		puts("Something new");
 		mkdir(curpath, 0700);
 	}
 
@@ -343,7 +349,15 @@ int main(int argc, char *argv[]) {
 	}
 	if (u == -1) 
 		return 0;
-	
+
+	if (argv[2][strlen(argv[2])-1] == '1') {
+		puts("1");
+		FMT_CMD = FMT_CMD_1;
+	}
+	else {
+		puts("0");
+		FMT_CMD = FMT_CMD_0;
+	}
 	downloading(argv[1]+u, argv[1]+v, "1512203_1512525_", "");
 	return 0;
 }
